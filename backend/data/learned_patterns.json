@@ -1,4 +1,6 @@
 {
-  "fraud_patterns": [],
+  "fraud_patterns": [
+    "bwsfkddsndfslvnc"
+  ],
   "legit_patterns": []
 }

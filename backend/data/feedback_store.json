@@ -1,1 +1,24 @@
-[]
+[
+  {
+    "id": "bde44b65ecc11e38-1772116716",
+    "timestamp": 1772116716.8667789,
+    "job_text_preview": "Job description\nMinimum qualifications:\n\u2022 Bachelor's degree or equivalent practical experience.\n\u2022 4 years of experience in data analytics, trust and safety, policy, cybersecurity, or related fields.\n\nPreferred qualifications:\n\u2022 4 years of experience in data analytics, access and authentication management, cybersecurity, technology research, anti-abuse, or related fields.\n\u2022 Experience in SQL, building dashboards, data collection and transformation, statistical modeling, visualization and dashboar",
+    "job_text_hash": "bde44b65ecc11e38",
+    "model_used": "mistral:latest",
+    "original": {
+      "fraud_score": 60,
+      "risk_level": "Medium",
+      "reasons": [
+        "The job posting requires specific experience in 'anti-abuse' which could indicate a focus on detecting and preventing fraudulent activities.",
+        "The job involves working globally and cross-functionally with Google engineers and product managers to identify and fight abuse and fraud cases, suggesting a role that may be directly involved in fraud detection or prevention.",
+        "The job description mentions 'user safety' multiple times, which could imply a focus on maintaining the integrity of user data and accounts, potentially involving fraud detection."
+      ]
+    },
+    "corrected": {
+      "fraud_score": 86,
+      "risk_level": "High",
+      "is_fraud": true
+    },
+    "user_explanation": "bwsfkddsndfslvnc"
+  }
+]
