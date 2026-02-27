@@ -90,7 +90,7 @@ ghost_job/
 | **Input limit** | 3,000 characters (truncated to 2,500 internally for speed) |
 | **Output format** | Structured JSON: `fraud_score`, `risk_level`, `reasons[]`, `suspicious_phrases[]` |
 | **Retry logic** | Retries once on malformed JSON; returns safe fallback on double failure |
-| **Learning method** | Dynamic few-shot prompt injection from user feedback (not weight updates) |
+| **Learning method** | Dynamic few-shot prompting from user's feedback (not weight updates) |
 
 ---
 
