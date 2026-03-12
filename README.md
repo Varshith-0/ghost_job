@@ -24,7 +24,7 @@
 
 ## How It Works
 
-1. **You paste** a job description (or upload a PDF).
+1. **You paste** a job description, **upload a PDF**, or **upload a screenshot**.
 2. **A local LLM** (running on your machine via Ollama) analyses it for fraud signals.
 3. **You get** a fraud score (0–100), risk level, reasons, and highlighted suspicious phrases.
 4. **If the result is wrong**, you correct the AI — your feedback is saved and used to improve **all future predictions across every model** instantly.
@@ -43,6 +43,7 @@ ghost_job/
 │   ├── services/
 │   │   ├── llm_service.py       LLM prompt + Ollama communication
 │   │   ├── feedback_service.py  RLHF feedback store + pattern learning
+│   │   ├── ocr_service.py       Image OCR text extraction (Tesseract)
 │   │   ├── pdf_service.py       PDF text extraction (PyMuPDF)
 │   │   └── text_service.py      Text cleaning + validation
 │   ├── models/
@@ -61,6 +62,7 @@ ghost_job/
 │   │   └── dashboard/page.tsx    Main dashboard
 │   ├── components/
 │   │   ├── FileUpload.tsx        Drag & drop PDF upload
+│   │   ├── ImageUpload.tsx       Screenshot / image OCR upload
 │   │   ├── TextInput.tsx         Text paste input
 │   │   ├── ModelSelector.tsx     Ollama model picker
 │   │   ├── RiskMeter.tsx         Animated circular score gauge
@@ -82,12 +84,12 @@ ghost_job/
 
 | Property | Details |
 |----------|---------|
-| **Default model** | `qwen2.5:1.5b` (fast, ~3–5s per analysis) |
+| **Default model** | `qwen3.5:4b` (fast, ~3–5s per analysis) |
 | **Supported models** | Any Ollama model (Mistral 7B, Llama 3.2, Qwen, Phi, etc.) |
 | **Model selection** | User picks from a dropdown — all locally installed Ollama models are listed |
 | **Temperature** | 0.2 (low randomness for consistent structured output) |
-| **Max tokens** | 512 output, 2048 context window |
-| **Input limit** | 3,000 characters (truncated to 2,500 internally for speed) |
+| **Max tokens** | 512 output, 8192 context window |
+| **Input limit** | 10,000 characters |
 | **Output format** | Structured JSON: `fraud_score`, `risk_level`, `reasons[]`, `suspicious_phrases[]` |
 | **Retry logic** | Retries once on malformed JSON; returns safe fallback on double failure |
 | **Learning method** | Dynamic few-shot prompting from user's feedback (not weight updates) |
@@ -103,6 +105,7 @@ Before you start, make sure you have these installed:
 | **Python** | 3.11 or higher | Runs the backend API server | [python.org/downloads](https://www.python.org/downloads/) |
 | **Node.js** | 18 or higher | Runs the frontend web app | [nodejs.org](https://nodejs.org/) |
 | **Ollama** | latest | Runs AI models locally on your machine | [ollama.com/download](https://ollama.com/download) |
+| **Tesseract** | latest | OCR engine for image/screenshot uploads | `brew install tesseract` (macOS) |
 
 ### How to check if you already have them
 
@@ -112,6 +115,7 @@ Open a terminal and run:
 python3 --version    # Should show Python 3.11+
 node --version       # Should show v18+
 ollama --version     # Should show ollama version X.X.X
+tesseract --version  # Should show tesseract X.X.X
 ```
 
 If any command says "not found", install that tool from the links above.
@@ -149,8 +153,8 @@ You should see something like `Listening on 127.0.0.1:11434`.
 Open a **new terminal** (keep `ollama serve` running in the first one):
 
 ```bash
-# Recommended: fast and lightweight (~1.5 GB)
-ollama pull qwen2.5:1.5b
+# Recommended: fast and capable (~2.5 GB)
+ollama pull qwen3.5:4b
 
 # Optional: larger and more accurate (~4 GB)
 ollama pull mistral
@@ -195,7 +199,7 @@ uvicorn main:app --reload --port 8000
 You should see:
 ```
 INFO:     Uvicorn running on http://0.0.0.0:8000
-INFO:     Preloading model qwen2.5:1.5b…
+INFO:     Preloading model qwen3.5:4b…
 ```
 
 **Verify it's working:** Open http://localhost:8000/docs in your browser — you should see the Swagger API docs.
@@ -227,7 +231,7 @@ Open **http://localhost:3000** in your browser. That's it!
 
 1. Click **"Get Started"** on the landing page
 2. **Select a model** from the dropdown (top of the dashboard)
-3. **Paste a job description** or **upload a PDF**
+3. **Paste a job description**, **upload a PDF**, or **upload a screenshot/image**
 4. Click **"Analyse Text"** and wait for results
 5. If the analysis is wrong, click **"Not Accurate — Teach AI"** to correct it
 
@@ -247,18 +251,18 @@ Open **http://localhost:3000** in your browser. That's it!
 |--------|------|-------------|
 | `GET` | `/api/health` | Health check + model info |
 | `GET` | `/api/models` | List locally available Ollama models with avg response times |
-| `POST` | `/api/analyze` | Analyse a job posting (PDF, text, or both) |
+| `POST` | `/api/analyze` | Analyse a job posting (PDF, image, text, or combination) |
 | `POST` | `/api/feedback` | Submit user correction (RLHF-style feedback) |
 | `GET` | `/api/feedback/stats` | Get aggregated feedback statistics |
 
 ### POST `/api/analyze`
 
 Accepts **multipart/form-data** with:
-- `file` (optional) — PDF upload
+- `file` (optional) — PDF or image upload (PDF, PNG, JPEG, GIF, WebP, BMP, TIFF)
 - `text` (optional) — plain-text job description
 - `model` (optional) — Ollama model name to use
 
-At least `file` or `text` must be provided.
+At least `file` or `text` must be provided. Images are processed via Tesseract OCR server-side.
 
 ```bash
 # Text only
@@ -309,7 +313,7 @@ curl -X POST http://localhost:8000/api/feedback \
   -H 'Content-Type: application/json' \
   -d '{
     "job_text": "The original job posting text...",
-    "model_used": "qwen2.5:1.5b",
+    "model_used": "qwen3.5:4b",
     "original_score": 85,
     "original_risk": "High",
     "original_reasons": ["Unrealistic salary"],
@@ -326,6 +330,7 @@ curl -X POST http://localhost:8000/api/feedback \
 
 ### Core Analysis
 - **PDF Upload** — drag & drop or browse; text extracted via PyMuPDF
+- **Image / Screenshot Upload** — drag & drop or browse; text extracted via Tesseract OCR
 - **Text Paste** — paste any job description directly
 - **Model Selection** — pick from any locally installed Ollama model
 - **Local LLM** — zero data ever leaves your machine
@@ -391,7 +396,7 @@ Create a `backend/.env` file to override defaults:
 
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=qwen2.5:1.5b
+OLLAMA_MODEL=qwen3.5:4b
 OLLAMA_TIMEOUT=60
 DEBUG=false
 ```
@@ -410,12 +415,12 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
 |------------|---------|
 | **No real fine-tuning** | Model weights are never updated. Learning is via prompt injection only, which has a quality ceiling. |
 | **Context window limit** | As feedback accumulates, only the top 3 most relevant examples + last 10 patterns are injected to avoid overloading the prompt. Older feedback may be eclipsed. |
-| **Small model accuracy** | Smaller models (e.g. `qwen2.5:1.5b`) are fast but less accurate at nuanced fraud detection. Larger models (Mistral 7B, Llama 3.2) give better results but are slower. |
+| **Small model accuracy** | Smaller models (e.g. `qwen3.5:4b`) are fast but less accurate at nuanced fraud detection. Larger models (Mistral 7B, Llama 3.2) give better results but are slower. |
 | **JSON parsing fragility** | Small models sometimes produce malformed JSON. The retry + fallback logic handles this, but you may occasionally see `fraud_score: 0` fallback results. |
 | **Local only** | Requires Ollama running on the same machine. No cloud deployment without modifications. |
 | **No user accounts** | Feedback is global — all corrections go into the same pool. No per-user isolation. |
 | **PDF extraction** | Complex PDFs with tables, images, or scanned text may not extract cleanly. Best with text-based PDFs. |
-| **Input size cap** | Job postings are truncated to ~2,500 characters internally to keep inference fast. Very long postings may lose context. |
+| **Input size cap** | Job postings over 10,000 characters are rejected. Long postings may use more tokens and slightly slow inference. |
 | **Similarity matching** | Feedback retrieval uses simple word-overlap (Jaccard similarity), not semantic embeddings. Unrelated feedback with overlapping common words could be retrieved. |
 | **Single-machine storage** | Feedback is stored in local JSON files. No database, no sync between multiple users/machines (beyond Git). |
 
@@ -426,7 +431,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000/api
 | Layer | Technology |
 |-------|------------|
 | **Frontend** | Next.js 14, React 18, TypeScript, Tailwind CSS, Framer Motion |
-| **Backend** | FastAPI, Pydantic v2, httpx, PyMuPDF |
+| **Backend** | FastAPI, Pydantic v2, httpx, PyMuPDF, pytesseract, Pillow |
 | **LLM Runtime** | Ollama (local inference) |
 | **Models** | Any Ollama-compatible model (Qwen, Mistral, Llama, Phi, etc.) |
 | **AI Assistant** | Built with Claude Opus 4.6 via GitHub Copilot |
