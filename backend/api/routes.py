@@ -30,6 +30,7 @@ from services.feedback_service import (
     get_feedback_stats,
 )
 from services.pdf_service import extract_text_from_pdf
+from services.ocr_service import extract_text_from_image, SUPPORTED_MIME_TYPES as IMAGE_MIME_TYPES
 from services.text_service import clean_text, validate_text
 from config import get_settings
 
@@ -88,36 +89,43 @@ async def analyze(
     model: Optional[str] = Form(None),
 ):
     """
-    Accepts an optional PDF file **and/or** optional text input.
-    At least one must be provided.  If both are given the PDF text
-    is extracted and **prepended** to the supplied text.
+    Accepts an optional PDF/image file **and/or** optional text input.
+    At least one must be provided.  If both are given the extracted text
+    is **prepended** to the supplied text.
+
+    Supported file types: PDF, PNG, JPEG, GIF, WebP, BMP, TIFF.
     """
     settings = get_settings()
     combined_text = ""
 
-    # ── PDF path ──────────────────────────────────
+    ACCEPTED_TYPES = {"application/pdf"} | IMAGE_MIME_TYPES
+    MAX_FILE_BYTES = settings.MAX_PDF_SIZE_MB * 1024 * 1024  # reuse same limit
+
+    # ── File path (PDF or image) ──────────────────
     if file is not None:
-        # Validate content type
-        if file.content_type not in ("application/pdf",):
+        if file.content_type not in ACCEPTED_TYPES:
             raise HTTPException(
                 status_code=422,
-                detail="Only PDF files are accepted.",
+                detail=f"Unsupported file type '{file.content_type}'. "
+                       f"Accepted: PDF and common image formats.",
             )
 
         contents = await file.read()
-        max_bytes = settings.MAX_PDF_SIZE_MB * 1024 * 1024
-        if len(contents) > max_bytes:
+        if len(contents) > MAX_FILE_BYTES:
             raise HTTPException(
                 status_code=422,
-                detail=f"PDF exceeds the {settings.MAX_PDF_SIZE_MB} MB limit.",
+                detail=f"File exceeds the {settings.MAX_PDF_SIZE_MB} MB limit.",
             )
 
         try:
-            pdf_text = await extract_text_from_pdf(contents)
+            if file.content_type == "application/pdf":
+                file_text = await extract_text_from_pdf(contents)
+            else:
+                file_text = await extract_text_from_image(contents)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-        combined_text += pdf_text
+        combined_text += file_text
 
     # ── Text path ─────────────────────────────────
     if text:

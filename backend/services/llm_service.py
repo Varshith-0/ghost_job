@@ -122,7 +122,7 @@ async def _call_ollama(prompt: str, model: str | None = None) -> str | None:
         "options": {
             "temperature": 0.2,
             "num_predict": 512,
-            "num_ctx": 2048,
+            "num_ctx": 8192,
             "top_k": 20,
             "top_p": 0.8,
             "repeat_penalty": 1.1,
@@ -157,9 +157,9 @@ async def analyse_job_text(
     settings = get_settings()
     model = model or settings.OLLAMA_MODEL
 
-    # Truncate — speed matters
-    if len(job_text) > 2500:
-        job_text = job_text[:2500]
+    # Truncate to stay within context limits
+    if len(job_text) > 10000:
+        job_text = job_text[:10000]
 
     # Inject relevant user feedback so ALL models learn instantly
     feedback_section = build_feedback_prompt_section(job_text)

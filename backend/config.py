@@ -15,7 +15,7 @@ class Settings(BaseSettings):
 
     # Ollama / LLM
     OLLAMA_BASE_URL: str = "http://localhost:11434"
-    OLLAMA_MODEL: str = "qwen2.5:1.5b"
+    OLLAMA_MODEL: str = "qwen3.5:4b"
     OLLAMA_TIMEOUT: int = 60  # seconds
 
     # CORS
@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     # Upload limits
     MAX_PDF_SIZE_MB: int = 10
-    MAX_TEXT_LENGTH: int = 3_000
+    MAX_TEXT_LENGTH: int = 10_000
 
     class Config:
         env_file = ".env"

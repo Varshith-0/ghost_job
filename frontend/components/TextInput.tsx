@@ -38,11 +38,11 @@ export default function TextInput({ onSubmit, disabled, modelSelector }: TextInp
 
       <div className="flex items-center justify-between">
         <span className="text-xs text-gray-400 dark:text-gray-500">
-          {text.length.toLocaleString()} / 3,000 characters{" "}
+          {text.length.toLocaleString()} / 10,000 characters{" "}
           {text.trim().length < 20 && text.length > 0 && (
             <span className="text-amber-500">(min 20)</span>
           )}
-          {text.length > 3000 && (
+          {text.length > 10000 && (
             <span className="text-amber-500"> — will be truncated</span>
           )}
         </span>

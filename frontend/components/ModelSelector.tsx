@@ -11,18 +11,11 @@ interface ModelSelectorProps {
 
 /** Shorten Ollama model names for display */
 function shortName(name: string): string {
-  // "qwen2.5:1.5b" → "Qwen 2.5 1.5B"
+  // "qwen3.5:4b" → "Qwen 3.5 4B"
   if (name.startsWith("qwen")) {
     const ver = name.match(/qwen([\d.]*)/)?.[1] ?? "";
     const size = name.match(/:(\w+)/)?.[1]?.toUpperCase() ?? "";
     return `Qwen ${ver} ${size}`.trim();
-  }
-  // "mistral:latest" / "mistral:7b" → "Mistral 7B"
-  if (name.startsWith("mistral")) {
-    const tag = name.split(":")[1] ?? "";
-    // mistral base is 7B
-    const size = tag === "latest" || !tag ? "7B" : tag.toUpperCase();
-    return `Mistral ${size}`;
   }
   // "llama3.2:3b" → "Llama 3.2 3B"
   if (name.startsWith("llama")) {
@@ -33,6 +26,13 @@ function shortName(name: string): string {
   // fallback: capitalise first part before ':'
   const base = name.split(":")[0];
   return base.charAt(0).toUpperCase() + base.slice(1);
+}
+
+/** Only show Llama and Qwen models */
+function filterAllowed(models: ModelInfo[]): ModelInfo[] {
+  return models.filter(
+    (m) => m.name.startsWith("llama") || m.name.startsWith("qwen")
+  );
 }
 
 function timeLabel(m: ModelInfo): string {
@@ -52,7 +52,7 @@ export default function ModelSelector({ selected, onSelect }: ModelSelectorProps
   useEffect(() => {
     getModels()
       .then((res) => {
-        setModels(res.models);
+        setModels(filterAllowed(res.models));
         if (!selected) onSelect(res.default);
       })
       .catch(() => {
@@ -77,7 +77,7 @@ export default function ModelSelector({ selected, onSelect }: ModelSelectorProps
     // Always try to (re)fetch models when opening
     getModels()
       .then((r) => {
-        setModels(r.models);
+        setModels(filterAllowed(r.models));
         if (!selected && r.default) onSelect(r.default);
       })
       .catch(() => {});

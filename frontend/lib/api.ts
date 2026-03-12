@@ -71,6 +71,11 @@ export async function analyseBoth(file: File, text: string, model?: string): Pro
   return postAnalyze(buildForm({ file, text, model }));
 }
 
+/** Analyse an uploaded image (OCR extraction happens server-side) */
+export async function analyseImage(file: File, model?: string): Promise<AnalysisResponse> {
+  return postAnalyze(buildForm({ file, model }));
+}
+
 // ── Models ──────────────────────────────────────────────────────
 
 /** Fetch available Ollama models with average response times */

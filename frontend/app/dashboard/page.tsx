@@ -7,13 +7,14 @@ import Link from "next/link";
 
 import ThemeToggle from "@/components/ThemeToggle";
 import FileUpload from "@/components/FileUpload";
+import ImageUpload from "@/components/ImageUpload";
 import TextInput from "@/components/TextInput";
 import Loader from "@/components/Loader";
 import ResultPanel from "@/components/ResultPanel";
 import ModelSelector from "@/components/ModelSelector";
-import { analyseText, analysePdf, type AnalysisResult } from "@/lib/api";
+import { analyseText, analysePdf, analyseImage, type AnalysisResult } from "@/lib/api";
 
-type Tab = "text" | "pdf";
+type Tab = "text" | "pdf" | "image";
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>("text");
@@ -67,6 +68,26 @@ export default function DashboardPage() {
     }
   }, [selectedModel]);
 
+  // ── Image / screenshot OCR analysis ────────────
+  const handleImageSelect = useCallback(async (file: File) => {
+    reset();
+    setLoading(true);
+    try {
+      const res = await analyseImage(file, selectedModel || undefined);
+      if (res.success && res.data) {
+        setResult(res.data);
+        setOriginalText("(Extracted from screenshot via OCR)");
+        toast.success("Screenshot analysed successfully!");
+      } else {
+        toast.error(res.error ?? "Analysis failed.");
+      }
+    } catch (err: any) {
+      toast.error(err.message ?? "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedModel]);
+
   return (
     <div className="relative min-h-screen">
       {/* Background */}
@@ -98,7 +119,7 @@ export default function DashboardPage() {
             Fraud Detection Dashboard
           </h1>
           <p className="text-gray-500 dark:text-gray-400">
-            Upload a PDF or paste the job description text to start analysis.
+            Upload a PDF, paste text, or drop a screenshot to start analysis.
           </p>
         </div>
 
@@ -110,7 +131,7 @@ export default function DashboardPage() {
           {/* Tabs + Model Selector */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <div className="flex gap-2 p-1 rounded-xl bg-gray-100 dark:bg-gray-800 w-fit">
-              {(["text", "pdf"] as Tab[]).map((t) => (
+              {(["text", "pdf", "image"] as Tab[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => { setTab(t); reset(); }}
@@ -132,7 +153,7 @@ export default function DashboardPage() {
                     />
                   )}
                   <span className="relative z-10 capitalize">
-                    {t === "pdf" ? "Upload PDF" : "Paste Text"}
+                    {t === "pdf" ? "Upload PDF" : t === "image" ? "Screenshot" : "Paste Text"}
                   </span>
                 </button>
               ))}
@@ -152,8 +173,10 @@ export default function DashboardPage() {
               >
                 {tab === "text" ? (
                   <TextInput onSubmit={handleTextSubmit} disabled={loading} />
-                ) : (
+                ) : tab === "pdf" ? (
                   <FileUpload onFileSelect={handleFileSelect} disabled={loading} />
+                ) : (
+                  <ImageUpload onFileSelect={handleImageSelect} disabled={loading} />
                 )}
               </motion.div>
             )}

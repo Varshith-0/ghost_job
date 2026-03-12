@@ -72,10 +72,18 @@ def _text_hash(text: str) -> str:
     return hashlib.sha256(text.strip().lower().encode()).hexdigest()[:16]
 
 
+_STOP_WORDS = frozenset(
+    "a an the and or but in on at to for of is it this that with from by as are "
+    "be was were will would can could do does did have has had not no so if you "
+    "we they he she its our your their about up out all been being into over "
+    "more also very just than may must should which who what when where how any".split()
+)
+
+
 def _simple_similarity(a: str, b: str) -> float:
-    """Cheap word-overlap Jaccard similarity (no external deps)."""
-    wa = set(a.lower().split())
-    wb = set(b.lower().split())
+    """Word-overlap Jaccard similarity, ignoring common stop-words."""
+    wa = set(a.lower().split()) - _STOP_WORDS
+    wb = set(b.lower().split()) - _STOP_WORDS
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / len(wa | wb)
@@ -155,7 +163,7 @@ def _update_patterns(explanation: str, is_fraud: bool) -> None:
         _save_patterns(patterns)
 
 
-def get_relevant_feedback(job_text: str, top_k: int = 3) -> list[dict[str, Any]]:
+def get_relevant_feedback(job_text: str, top_k: int = 2) -> list[dict[str, Any]]:
     """
     Retrieve the top-k most relevant past feedback entries for a given
     job text, using word-overlap similarity.
@@ -171,8 +179,8 @@ def get_relevant_feedback(job_text: str, top_k: int = 3) -> list[dict[str, Any]]
 
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # Only include entries with meaningful similarity
-    return [e for sim, e in scored[:top_k] if sim > 0.05]
+    # Only include entries with meaningful similarity (0.20 = real overlap)
+    return [e for sim, e in scored[:top_k] if sim >= 0.20]
 
 
 def build_feedback_prompt_section(job_text: str) -> str:
@@ -185,8 +193,8 @@ def build_feedback_prompt_section(job_text: str) -> str:
 
     # ── Learned patterns ──────────────────────────────────────
     patterns = _load_patterns()
-    fraud_pats = patterns.get("fraud_patterns", [])[-10:]   # last 10
-    legit_pats = patterns.get("legit_patterns", [])[-10:]
+    fraud_pats = patterns.get("fraud_patterns", [])[-5:]   # last 5 only
+    legit_pats = patterns.get("legit_patterns", [])[-5:]
 
     if fraud_pats or legit_pats:
         parts.append("=== LEARNED FROM USER FEEDBACK ===")
@@ -200,18 +208,16 @@ def build_feedback_prompt_section(job_text: str) -> str:
                 parts.append(f"  - {p}")
         parts.append("")
 
-    # ── Relevant few-shot examples ────────────────────────────
-    examples = get_relevant_feedback(job_text, top_k=3)
+    # ── Relevant few-shot examples (NO job text snippets — prevents leaking) ──
+    examples = get_relevant_feedback(job_text, top_k=2)
     if examples:
         parts.append("=== PAST CORRECTIONS (learn from these) ===")
         for i, ex in enumerate(examples, 1):
             orig = ex.get("original", {})
             corr = ex.get("corrected", {})
             explanation = ex.get("user_explanation", "")
-            preview = ex.get("job_text_preview", "")[:200]
 
             parts.append(f"Example {i}:")
-            parts.append(f"  Posting snippet: \"{preview}\"")
             parts.append(
                 f"  Model predicted: score={orig.get('fraud_score')}, "
                 f"risk={orig.get('risk_level')}"
